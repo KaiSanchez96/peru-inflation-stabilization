@@ -19,19 +19,21 @@
 # ==========================================================
 # 0) Libraries
 # ==========================================================
-library(wbstats)
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-library(broom)
-library(tibble)
-library(purrr)
-library(stringr)
-library(forcats)
-library(sandwich)
-library(lmtest)
-library(car)
-library(ggrepel)
+suppressPackageStartupMessages({
+  library(wbstats)
+  library(dplyr)
+  library(tidyr)
+  library(ggplot2)
+  library(broom)
+  library(tibble)
+  library(purrr)
+  library(stringr)
+  library(forcats)
+  library(sandwich)
+  library(lmtest)
+  library(car)
+  library(ggrepel)
+})
 
 # ==========================================================
 # 1) Settings
@@ -43,6 +45,7 @@ YEAR_MAX <- 2022
 OUT_DIR  <- "output"
 OUT_FIG  <- file.path(OUT_DIR, "figures")
 OUT_TAB  <- file.path(OUT_DIR, "tables")
+
 dir.create(OUT_FIG, recursive = TRUE, showWarnings = FALSE)
 dir.create(OUT_TAB, recursive = TRUE, showWarnings = FALSE)
 
@@ -64,7 +67,10 @@ HIGH_THRESHOLD     <- 20
 save_plot <- function(plot, filename, w = 8, h = 5, dpi = 300) {
   ggsave(
     filename = file.path(OUT_FIG, filename),
-    plot = plot, width = w, height = h, dpi = dpi
+    plot = plot,
+    width = w,
+    height = h,
+    dpi = dpi
   )
 }
 
@@ -216,6 +222,14 @@ panel_feat <- panel %>%
     broad_money_w   = winsorize(broad_money_growth, p = 0.05)
   )
 
+# Defensive checks
+stopifnot(all(panel_feat$post_stabilization %in% c(TRUE, FALSE)))
+stopifnot(all(
+  panel_feat$regime %in% c("Hyperinflation", "Pre-stabilization", "Post-stabilization") |
+    is.na(panel_feat$regime)
+))
+stopifnot(all(panel_feat$inflation_cpi >= 0 | is.na(panel_feat$inflation_cpi)))
+
 write.csv(panel_feat, file.path(OUT_TAB, "panel_feat.csv"), row.names = FALSE)
 
 # ==========================================================
@@ -240,6 +254,7 @@ data_dictionary <- tribble(
   "regime",             "Hyperinflation / pre-stabilization / post-stabilization", "category",
   "log1p_inflation",    "log(1 + inflation)", "log points"
 )
+
 write.csv(data_dictionary, file.path(OUT_TAB, "data_dictionary.csv"), row.names = FALSE)
 
 summary_stats_all <- panel_feat %>%
@@ -273,7 +288,7 @@ write.csv(summary_stats_regime, file.path(OUT_TAB, "summary_stats_by_regime.csv"
 # 7) Descriptive outputs
 # ==========================================================
 
-# 7A. Episode table
+# 7A) Episode table
 episodes <- panel_feat %>%
   filter(high_infl_20) %>%
   select(year, regime, inflation_cpi, fx_depr, broad_money_growth, tot_growth, gov_cons_gdp) %>%
@@ -281,7 +296,7 @@ episodes <- panel_feat %>%
 
 write.csv(episodes, file.path(OUT_TAB, "inflation_episodes.csv"), row.names = FALSE)
 
-# 7B. Time-series dashboard
+# 7B) SUPPORTING / APPENDIX: time-series dashboard
 panel_long <- panel_feat %>%
   select(year, inflation_cpi, broad_money_growth, fx_depr, tot_growth, gov_cons_gdp) %>%
   pivot_longer(-year, names_to = "series", values_to = "value")
@@ -298,7 +313,7 @@ p_dashboard <- ggplot(panel_long, aes(x = year, y = value)) +
 
 save_plot(p_dashboard, "01_dashboard_timeseries.png", w = 8, h = 11)
 
-# 7C. Inflation regime chart
+# 7C) CORE FIGURE: inflation regime chart
 regime_rects <- tibble(
   xmin = c(1988, 1995),
   xmax = c(1991, 2022),
@@ -325,10 +340,20 @@ p_regime <- ggplot(panel_feat, aes(x = year, y = inflation_cpi)) +
     data = panel_feat %>% filter(inflation_cpi > HYPER_THRESHOLD),
     size = 2.5
   ) +
-  annotate("text", x = 1989.5, y = max(panel_feat$inflation_cpi, na.rm = TRUE) * 0.95,
-           label = "Hyperinflation\n1988–1991", size = 4) +
-  annotate("text", x = 2008, y = max(panel_feat$inflation_cpi, na.rm = TRUE) * 0.95,
-           label = "Post-stabilization\n1995–2022", size = 4) +
+  annotate(
+    "text",
+    x = 1989.5,
+    y = max(panel_feat$inflation_cpi, na.rm = TRUE) * 0.95,
+    label = "Hyperinflation\n1988–1991",
+    size = 4
+  ) +
+  annotate(
+    "text",
+    x = 2008,
+    y = max(panel_feat$inflation_cpi, na.rm = TRUE) * 0.95,
+    label = "Post-stabilization\n1995–2022",
+    size = 4
+  ) +
   labs(
     title = "Inflation is dominated by a crisis regime",
     subtitle = "A narrow hyperinflation episode drives the scale of the full 1980–2022 series",
@@ -339,9 +364,7 @@ p_regime <- ggplot(panel_feat, aes(x = year, y = inflation_cpi)) +
 
 save_plot(p_regime, "02_inflation_regime_chart.png", w = 9, h = 5)
 
-
-
-# 7D. Distribution charts
+# 7D) SUPPORTING / APPENDIX: distribution charts
 dist_long <- panel_feat %>%
   select(inflation_cpi, broad_money_growth, fx_depr) %>%
   pivot_longer(everything(), names_to = "variable", values_to = "value")
@@ -358,7 +381,7 @@ p_dist <- ggplot(dist_long, aes(x = value)) +
 
 save_plot(p_dist, "03_distribution_check.png", w = 8, h = 9)
 
-# 7E. Scatterplots colored by regime
+# 7E) SUPPORTING / APPENDIX: regime-colored scatterplots
 scatter_df <- panel_feat %>%
   filter(complete.cases(inflation_cpi, broad_money_growth, fx_depr, tot_growth, gov_cons_gdp))
 
@@ -367,7 +390,8 @@ p_money_regime <- ggplot(scatter_df, aes(x = broad_money_growth, y = inflation_c
   geom_smooth(method = "lm", se = FALSE, linewidth = 0.6) +
   geom_text_repel(
     data = scatter_df %>% filter(inflation_cpi > HYPER_THRESHOLD),
-    max.overlaps = 10, size = 3
+    max.overlaps = 10,
+    size = 3
   ) +
   labs(
     title = "Inflation vs broad money growth",
@@ -382,7 +406,8 @@ p_fx_regime <- ggplot(scatter_df, aes(x = fx_depr, y = inflation_cpi, label = ye
   geom_smooth(method = "lm", se = FALSE, linewidth = 0.6) +
   geom_text_repel(
     data = scatter_df %>% filter(inflation_cpi > HYPER_THRESHOLD),
-    max.overlaps = 10, size = 3
+    max.overlaps = 10,
+    size = 3
   ) +
   labs(
     title = "Inflation vs FX depreciation",
@@ -395,7 +420,7 @@ p_fx_regime <- ggplot(scatter_df, aes(x = fx_depr, y = inflation_cpi, label = ye
 save_plot(p_money_regime, "04_scatter_money_regime.png", w = 8, h = 5)
 save_plot(p_fx_regime, "05_scatter_fx_regime.png", w = 8, h = 5)
 
-# 7F. Rolling volatility
+# 7F) SUPPORTING / APPENDIX: rolling volatility
 p_vol_infl <- ggplot(panel_feat, aes(x = year, y = infl_vol_5y)) +
   geom_line(linewidth = 0.6) +
   labs(
@@ -433,9 +458,7 @@ sample_post <- sample_full %>%
   filter(year >= STABILIZATION_YEAR)
 
 sample_log <- panel_feat %>%
-  filter(
-    complete.cases(log1p_inflation, broad_money_growth, fx_depr, tot_growth, gov_cons_gdp)
-  )
+  filter(complete.cases(log1p_inflation, broad_money_growth, fx_depr, tot_growth, gov_cons_gdp))
 
 write.csv(sample_full, file.path(OUT_TAB, "sample_full.csv"), row.names = FALSE)
 write.csv(sample_no_hyper, file.path(OUT_TAB, "sample_no_hyper.csv"), row.names = FALSE)
@@ -443,31 +466,26 @@ write.csv(sample_no_hyper, file.path(OUT_TAB, "sample_no_hyper.csv"), row.names 
 # ==========================================================
 # 9) Models
 # ==========================================================
-# Naive full-sample levels
 m_full <- lm(
   inflation_cpi ~ broad_money_growth + fx_depr + tot_growth + gov_cons_gdp,
   data = sample_full
 )
 
-# Excluding hyperinflation years
 m_no_hyper <- lm(
   inflation_cpi ~ broad_money_growth + fx_depr + tot_growth + gov_cons_gdp,
   data = sample_no_hyper
 )
 
-# Pre-stabilization
 m_pre <- lm(
   inflation_cpi ~ broad_money_growth + fx_depr + tot_growth + gov_cons_gdp,
   data = sample_pre
 )
 
-# Post-stabilization
 m_post <- lm(
   inflation_cpi ~ broad_money_growth + fx_depr + tot_growth + gov_cons_gdp,
   data = sample_post
 )
 
-# Interaction model: do slopes change after stabilization?
 m_interact <- lm(
   inflation_cpi ~ broad_money_growth * post_stabilization +
     fx_depr * post_stabilization +
@@ -475,26 +493,24 @@ m_interact <- lm(
   data = sample_full
 )
 
-# Functional form robustness
 m_log <- lm(
   log1p_inflation ~ broad_money_growth + fx_depr + tot_growth + gov_cons_gdp,
   data = sample_log
 )
 
-# Winsorized robustness
 m_winsor <- lm(
   inflation_cpi_w ~ broad_money_w + fx_depr_w + tot_growth + gov_cons_gdp,
   data = sample_full
 )
 
 model_list <- list(
-  full_levels    = m_full,
-  no_hyper       = m_no_hyper,
-  pre_1995       = m_pre,
-  post_1995      = m_post,
-  interaction    = m_interact,
-  log_outcome    = m_log,
-  winsorized     = m_winsor
+  full_levels = m_full,
+  no_hyper    = m_no_hyper,
+  pre_1995    = m_pre,
+  post_1995   = m_post,
+  interaction = m_interact,
+  log_outcome = m_log,
+  winsorized  = m_winsor
 )
 
 # ==========================================================
@@ -516,7 +532,7 @@ fit_stats <- bind_rows(
 write.csv(fit_stats, file.path(OUT_TAB, "model_fit_stats.csv"), row.names = FALSE)
 
 # ==========================================================
-# 11) Influence diagnostics
+# 11) CORE DIAGNOSTICS: influence diagnostics
 # ==========================================================
 diag_full <- augment(m_full, data = sample_full) %>%
   mutate(
@@ -528,64 +544,16 @@ diag_full <- augment(m_full, data = sample_full) %>%
 
 top_influence <- diag_full %>%
   arrange(desc(cooks_d)) %>%
-  select(year, inflation_cpi, broad_money_growth, fx_depr, .fitted, .resid, cooks_d, leverage, std_resid, dffits) %>%
+  select(
+    year, inflation_cpi, broad_money_growth, fx_depr,
+    .fitted, .resid, cooks_d, leverage, std_resid, dffits
+  ) %>%
   slice_head(n = 10)
 
 write.csv(diag_full, file.path(OUT_TAB, "m_full_diagnostics.csv"), row.names = FALSE)
 write.csv(top_influence, file.path(OUT_TAB, "top_influential_years.csv"), row.names = FALSE)
 
-p_cooks <- ggplot(diag_full, aes(x = year, y = cooks_d, label = year)) +
-  geom_col() +
-  geom_text_repel(
-    data = diag_full %>% arrange(desc(cooks_d)) %>% slice_head(n = 6),
-    max.overlaps = 20, size = 3
-  ) +
-  labs(
-    title = "Influence diagnostics: a few years dominate the baseline regression",
-    x = NULL,
-    y = "Cook's distance"
-  ) +
-  theme_minimal()
-
-save_plot(p_cooks, "08_cooks_distance.png", w = 9, h = 5)
-
-p_lev_resid <- ggplot(diag_full, aes(x = leverage, y = std_resid, label = year)) +
-  geom_point(size = 2) +
-  geom_text_repel(
-    data = diag_full %>% filter(abs(std_resid) > 2 | cooks_d > quantile(cooks_d, 0.90, na.rm = TRUE)),
-    max.overlaps = 20, size = 3
-  ) +
-  labs(
-    title = "Leverage vs standardized residuals",
-    x = "Leverage",
-    y = "Standardized residual"
-  ) +
-  theme_minimal()
-
-save_plot(p_lev_resid, "09_leverage_vs_stdresid.png", w = 8, h = 5)
-
-# ==========================================================
-# 11A) Influence diagnostics charts
-# ==========================================================
-
-diag_full <- augment(m_full, data = sample_full) %>%
-  mutate(
-    cooks_d   = cooks.distance(m_full),
-    leverage  = hatvalues(m_full),
-    std_resid = rstandard(m_full),
-    dffits    = dffits(m_full)
-  )
-
-top_influence <- diag_full %>%
-  arrange(desc(cooks_d)) %>%
-  select(year, inflation_cpi, broad_money_growth, fx_depr,
-         .fitted, .resid, cooks_d, leverage, std_resid, dffits) %>%
-  slice_head(n = 10)
-
-write.csv(diag_full, file.path(OUT_TAB, "m_full_diagnostics.csv"), row.names = FALSE)
-write.csv(top_influence, file.path(OUT_TAB, "top_influential_years.csv"), row.names = FALSE)
-
-# --- Portfolio version: Top 10 influential years only ---
+# CORE FIGURE: Top 10 influential years
 p_cooks_top10 <- top_influence %>%
   arrange(cooks_d) %>%
   mutate(year = factor(year, levels = year)) %>%
@@ -603,7 +571,7 @@ p_cooks_top10 <- top_influence %>%
 
 save_plot(p_cooks_top10, "08_cooks_distance_top10.png", w = 8, h = 5)
 
-# --- Appendix / audit version: Full sample with log scale ---
+# SUPPORTING / APPENDIX: full sample with log scale
 p_cooks_log <- ggplot(diag_full, aes(x = year, y = cooks_d, label = year)) +
   geom_col() +
   scale_y_log10() +
@@ -622,7 +590,7 @@ p_cooks_log <- ggplot(diag_full, aes(x = year, y = cooks_d, label = year)) +
 
 save_plot(p_cooks_log, "08b_cooks_distance_logscale.png", w = 9, h = 5)
 
-# --- Keep leverage vs residual plot too ---
+# SUPPORTING / APPENDIX: leverage vs residuals
 p_lev_resid <- ggplot(diag_full, aes(x = leverage, y = std_resid, label = year)) +
   geom_point(size = 2) +
   geom_text_repel(
@@ -642,7 +610,7 @@ p_lev_resid <- ggplot(diag_full, aes(x = leverage, y = std_resid, label = year))
 save_plot(p_lev_resid, "09_leverage_vs_stdresid.png", w = 8, h = 5)
 
 # ==========================================================
-# 12) Fitted values and residual checks
+# 12) SUPPORTING / APPENDIX: fitted values and residual checks
 # ==========================================================
 fitted_full <- sample_full %>%
   mutate(
@@ -680,7 +648,7 @@ p_resid_time <- ggplot(fitted_full, aes(x = year, y = resid_full)) +
 save_plot(p_resid_time, "11_residuals_over_time.png", w = 9, h = 5)
 
 # ==========================================================
-# 13) Coefficient stability comparison
+# 13) CORE FIGURE: coefficient stability comparison
 # ==========================================================
 coef_compare <- all_coefs %>%
   filter(
@@ -705,7 +673,11 @@ coef_compare <- all_coefs %>%
     )
   )
 
-write.csv(coef_compare, file.path(OUT_TAB, "coefficient_stability_comparison.csv"), row.names = FALSE)
+write.csv(
+  coef_compare,
+  file.path(OUT_TAB, "coefficient_stability_comparison.csv"),
+  row.names = FALSE
+)
 
 p_coef_compare <- ggplot(coef_compare, aes(x = estimate, y = model)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
@@ -732,10 +704,14 @@ interaction_terms <- extract_model_results(m_interact, "interaction") %>%
     conf_high = estimate + 1.96 * std.error
   )
 
-write.csv(interaction_terms, file.path(OUT_TAB, "interaction_model_neweywest.csv"), row.names = FALSE)
+write.csv(
+  interaction_terms,
+  file.path(OUT_TAB, "interaction_model_neweywest.csv"),
+  row.names = FALSE
+)
 
 # ==========================================================
-# 15) Correlation matrix (kept, but demoted)
+# 15) DEMOTED / LEGACY: correlation matrix
 # ==========================================================
 corr_df <- panel_feat %>%
   select(inflation_cpi, broad_money_growth, fx_depr, tot_growth, gov_cons_gdp) %>%
@@ -759,10 +735,14 @@ portfolio_summary <- tibble(
   )
 )
 
-write.csv(portfolio_summary, file.path(OUT_TAB, "portfolio_summary_findings.csv"), row.names = FALSE)
+write.csv(
+  portfolio_summary,
+  file.path(OUT_TAB, "portfolio_summary_findings.csv"),
+  row.names = FALSE
+)
 
 # ==========================================================
-# 17) Save project metadata / README notes
+# 17) Project metadata / README notes
 # ==========================================================
 readme_notes <- tibble(
   section = c(
@@ -778,7 +758,7 @@ readme_notes <- tibble(
     "Descriptive macro analytics case study",
     "Show how regime change and outliers alter inflation modeling conclusions",
     "Results are not causal and are sensitive to crisis-era leverage points",
-    "02_inflation_regime_chart.png; 08_cooks_distance.png; 12_coefficient_stability.png",
+    "02_inflation_regime_chart.png; 08_cooks_distance_top10.png; 12_coefficient_stability.png",
     "top_influential_years.csv; model_fit_stats.csv; coefficient_stability_comparison.csv"
   )
 )
