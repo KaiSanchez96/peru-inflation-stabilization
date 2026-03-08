@@ -1,0 +1,7 @@
+"section","content"
+"project_title","Peru Inflation and Macroeconomic Stabilization (1980–2022)"
+"project_type","Descriptive macro analytics case study"
+"analytical_goal","Show how regime change and outliers alter inflation modeling conclusions"
+"key_caution","Results are not causal and are sensitive to crisis-era leverage points"
+"best_figures","02_inflation_regime_chart.png; 08_cooks_distance_top10.png; 12_coefficient_stability.png"
+"best_tables","top_influential_years.csv; model_fit_stats.csv; coefficient_stability_comparison.csv"

@@ -1,0 +1,6 @@
+"indicator_code","indicator_name","min_year","max_year","n_obs"
+"FM.LBL.BMNY.ZG","Broad money growth (annual %)",1961,2022,62
+"FP.CPI.TOTL.ZG","Inflation, consumer prices (annual %)",1960,2024,65
+"NE.CON.GOVT.ZS","General government final consumption expenditure (% of GDP)",1960,2024,65
+"PA.NUS.FCRF","Official exchange rate (LCU per US$, period average)",1960,2024,65
+"TT.PRI.MRCH.XD.WD","Net barter terms of trade index (2015 = 100)",1980,2023,44

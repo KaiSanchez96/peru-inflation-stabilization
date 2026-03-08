@@ -1,0 +1,7 @@
+"finding_order","finding"
+1,"Inflation dynamics are dominated by a small hyperinflation regime rather than a stable full-sample relationship."
+2,"Naive full-sample OLS is highly sensitive to influential crisis years."
+3,"Coefficient sizes change materially when hyperinflation years are excluded or when the sample is split pre/post stabilization."
+4,"Exchange-rate depreciation and money growth appear strongly associated with inflation in crisis years, but much less uniformly afterward."
+5,"Robust and HAC inference is more appropriate than plain OLS standard errors in this annual macro setting."
+6,"The project is descriptive and regime-aware, not causal."
