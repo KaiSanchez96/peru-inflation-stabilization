@@ -252,7 +252,8 @@ data_dictionary <- tribble(
   "fx_vol_5y",          "Rolling 5-year SD of FX depreciation", "percent",
   "post_stabilization", "Indicator for 1995 onward", "boolean",
   "regime",             "Hyperinflation / pre-stabilization / post-stabilization", "category",
-  "log1p_inflation",    "log(1 + inflation)", "log points"
+  "log1p_inflation",    "log(1 + inflation)", "log points",
+  "inflation_l1",       "Lagged inflation", "percent"
 )
 
 write.csv(data_dictionary, file.path(OUT_TAB, "data_dictionary.csv"), row.names = FALSE)
@@ -299,7 +300,8 @@ write.csv(episodes, file.path(OUT_TAB, "inflation_episodes.csv"), row.names = FA
 # 7B) SUPPORTING / APPENDIX: time-series dashboard
 panel_long <- panel_feat %>%
   select(year, inflation_cpi, broad_money_growth, fx_depr, tot_growth, gov_cons_gdp) %>%
-  pivot_longer(-year, names_to = "series", values_to = "value")
+  pivot_longer(-year, names_to = "series", values_to = "value") %>%
+  filter(!is.na(value))
 
 p_dashboard <- ggplot(panel_long, aes(x = year, y = value)) +
   geom_line(linewidth = 0.5) +
@@ -335,7 +337,7 @@ p_regime <- ggplot(panel_feat, aes(x = year, y = inflation_cpi)) +
     inherit.aes = FALSE,
     alpha = 0.07
   ) +
-  geom_line(linewidth = 0.8) +
+  geom_line(linewidth = 0.8, na.rm = TRUE) +
   geom_point(
     data = panel_feat %>% filter(inflation_cpi > HYPER_THRESHOLD),
     size = 2.5
@@ -367,7 +369,8 @@ save_plot(p_regime, "02_inflation_regime_chart.png", w = 9, h = 5)
 # 7D) SUPPORTING / APPENDIX: distribution charts
 dist_long <- panel_feat %>%
   select(inflation_cpi, broad_money_growth, fx_depr) %>%
-  pivot_longer(everything(), names_to = "variable", values_to = "value")
+  pivot_longer(everything(), names_to = "variable", values_to = "value") %>%
+  filter(is.finite(value))
 
 p_dist <- ggplot(dist_long, aes(x = value)) +
   geom_histogram(bins = 20) +
@@ -385,11 +388,12 @@ save_plot(p_dist, "03_distribution_check.png", w = 8, h = 9)
 scatter_df <- panel_feat %>%
   filter(complete.cases(inflation_cpi, broad_money_growth, fx_depr, tot_growth, gov_cons_gdp))
 
-p_money_regime <- ggplot(scatter_df, aes(x = broad_money_growth, y = inflation_cpi, label = year)) +
+p_money_regime <- ggplot(scatter_df, aes(x = broad_money_growth, y = inflation_cpi)) +
   geom_point(aes(shape = regime), size = 2) +
   geom_smooth(method = "lm", se = FALSE, linewidth = 0.6) +
   geom_text_repel(
     data = scatter_df %>% filter(inflation_cpi > HYPER_THRESHOLD),
+    aes(label = year),
     max.overlaps = 10,
     size = 3
   ) +
@@ -401,11 +405,12 @@ p_money_regime <- ggplot(scatter_df, aes(x = broad_money_growth, y = inflation_c
   ) +
   theme_minimal()
 
-p_fx_regime <- ggplot(scatter_df, aes(x = fx_depr, y = inflation_cpi, label = year)) +
+p_fx_regime <- ggplot(scatter_df, aes(x = fx_depr, y = inflation_cpi)) +
   geom_point(aes(shape = regime), size = 2) +
   geom_smooth(method = "lm", se = FALSE, linewidth = 0.6) +
   geom_text_repel(
     data = scatter_df %>% filter(inflation_cpi > HYPER_THRESHOLD),
+    aes(label = year),
     max.overlaps = 10,
     size = 3
   ) +
@@ -421,7 +426,9 @@ save_plot(p_money_regime, "04_scatter_money_regime.png", w = 8, h = 5)
 save_plot(p_fx_regime, "05_scatter_fx_regime.png", w = 8, h = 5)
 
 # 7F) SUPPORTING / APPENDIX: rolling volatility
-p_vol_infl <- ggplot(panel_feat, aes(x = year, y = infl_vol_5y)) +
+p_vol_infl <- panel_feat %>%
+  filter(!is.na(infl_vol_5y)) %>%
+  ggplot(aes(x = year, y = infl_vol_5y)) +
   geom_line(linewidth = 0.6) +
   labs(
     title = "Rolling inflation volatility (5-year SD)",
@@ -430,7 +437,9 @@ p_vol_infl <- ggplot(panel_feat, aes(x = year, y = infl_vol_5y)) +
   ) +
   theme_minimal()
 
-p_vol_fx <- ggplot(panel_feat, aes(x = year, y = fx_vol_5y)) +
+p_vol_fx <- panel_feat %>%
+  filter(!is.na(fx_vol_5y)) %>%
+  ggplot(aes(x = year, y = fx_vol_5y)) +
   geom_line(linewidth = 0.6) +
   labs(
     title = "Rolling FX depreciation volatility (5-year SD)",
@@ -460,8 +469,19 @@ sample_post <- sample_full %>%
 sample_log <- panel_feat %>%
   filter(complete.cases(log1p_inflation, broad_money_growth, fx_depr, tot_growth, gov_cons_gdp))
 
+sample_lagged <- panel_feat %>%
+  arrange(year) %>%
+  mutate(
+    inflation_l1 = lag(inflation_cpi)
+  ) %>%
+  filter(complete.cases(
+    inflation_cpi, inflation_l1,
+    broad_money_growth, fx_depr, tot_growth, gov_cons_gdp
+  ))
+
 write.csv(sample_full, file.path(OUT_TAB, "sample_full.csv"), row.names = FALSE)
 write.csv(sample_no_hyper, file.path(OUT_TAB, "sample_no_hyper.csv"), row.names = FALSE)
+write.csv(sample_lagged, file.path(OUT_TAB, "sample_lagged.csv"), row.names = FALSE)
 
 # ==========================================================
 # 9) Models
@@ -503,6 +523,11 @@ m_winsor <- lm(
   data = sample_full
 )
 
+m_lagged <- lm(
+  inflation_cpi ~ inflation_l1 + broad_money_growth + fx_depr + tot_growth + gov_cons_gdp,
+  data = sample_lagged
+)
+
 model_list <- list(
   full_levels = m_full,
   no_hyper    = m_no_hyper,
@@ -510,7 +535,8 @@ model_list <- list(
   post_1995   = m_post,
   interaction = m_interact,
   log_outcome = m_log,
-  winsorized  = m_winsor
+  winsorized  = m_winsor,
+  lagged_aux  = m_lagged
 )
 
 # ==========================================================
@@ -526,7 +552,8 @@ fit_stats <- bind_rows(
   model_fit_stats(m_post, "post_1995", "1995-2022", "inflation_cpi"),
   model_fit_stats(m_interact, "interaction", "full", "inflation_cpi"),
   model_fit_stats(m_log, "log_outcome", "full_nonnegative", "log1p_inflation"),
-  model_fit_stats(m_winsor, "winsorized", "full", "inflation_cpi_w")
+  model_fit_stats(m_winsor, "winsorized", "full", "inflation_cpi_w"),
+  model_fit_stats(m_lagged, "lagged_aux", "lagged_sample", "inflation_cpi")
 )
 
 write.csv(fit_stats, file.path(OUT_TAB, "model_fit_stats.csv"), row.names = FALSE)
@@ -648,6 +675,57 @@ p_resid_time <- ggplot(fitted_full, aes(x = year, y = resid_full)) +
 save_plot(p_resid_time, "11_residuals_over_time.png", w = 9, h = 5)
 
 # ==========================================================
+# 12B) SUPPORTING / APPENDIX: autocorrelation checks
+# ==========================================================
+dw_full <- car::durbinWatsonTest(m_full)
+bg_full <- lmtest::bgtest(m_full, order = 1)
+
+dw_post <- car::durbinWatsonTest(m_post)
+bg_post <- lmtest::bgtest(m_post, order = 1)
+
+autocorr_checks <- tibble::tibble(
+  model = c("full_levels", "full_levels", "post_1995", "post_1995"),
+  test  = c("Durbin-Watson", "Breusch-Godfrey(1)", "Durbin-Watson", "Breusch-Godfrey(1)"),
+  statistic = c(
+    unname(dw_full$dw),
+    unname(bg_full$statistic),
+    unname(dw_post$dw),
+    unname(bg_post$statistic)
+  ),
+  p_value = c(
+    unname(dw_full$p),
+    unname(bg_full$p.value),
+    unname(dw_post$p),
+    unname(bg_post$p.value)
+  )
+)
+
+write.csv(
+  autocorr_checks,
+  file.path(OUT_TAB, "autocorrelation_checks.csv"),
+  row.names = FALSE
+)
+
+acf_obj_full <- acf(residuals(m_full), plot = FALSE)
+
+acf_df_full <- tibble::tibble(
+  lag = as.numeric(acf_obj_full$lag),
+  acf = as.numeric(acf_obj_full$acf)
+) %>%
+  filter(lag > 0)
+
+p_acf_full <- ggplot(acf_df_full, aes(x = lag, y = acf)) +
+  geom_col() +
+  labs(
+    title = "Residual autocorrelation: full-sample baseline",
+    x = "Lag",
+    y = "ACF"
+  ) +
+  theme_minimal()
+
+save_plot(p_acf_full, "13_residual_acf_full.png", w = 8, h = 4)
+
+# ==========================================================
 # 13) CORE FIGURE: coefficient stability comparison
 # ==========================================================
 coef_compare <- all_coefs %>%
@@ -682,7 +760,11 @@ write.csv(
 p_coef_compare <- ggplot(coef_compare, aes(x = estimate, y = model)) +
   geom_vline(xintercept = 0, linetype = "dashed") +
   geom_point() +
-  geom_errorbarh(aes(xmin = conf_low, xmax = conf_high), height = 0.15) +
+  geom_errorbar(
+    aes(xmin = conf_low, xmax = conf_high),
+    width = 0.15,
+    orientation = "y"
+  ) +
   facet_wrap(~ term, scales = "free_x") +
   labs(
     title = "Coefficient stability across specifications",
@@ -709,6 +791,59 @@ write.csv(
   file.path(OUT_TAB, "interaction_model_neweywest.csv"),
   row.names = FALSE
 )
+
+# ==========================================================
+# 14B) Supporting table: log-outcome model
+# ==========================================================
+log_terms <- extract_model_results(m_log, "log_outcome") %>%
+  filter(std_error_type == "Newey-West") %>%
+  mutate(
+    conf_low = estimate - 1.96 * std.error,
+    conf_high = estimate + 1.96 * std.error
+  )
+
+write.csv(
+  log_terms,
+  file.path(OUT_TAB, "log_outcome_model_neweywest.csv"),
+  row.names = FALSE
+)
+
+# SUPPORTING / APPENDIX: coefficient plot for log-outcome model
+log_coef_plot <- log_terms %>%
+  filter(term %in% c("broad_money_growth", "fx_depr", "tot_growth", "gov_cons_gdp")) %>%
+  mutate(
+    term = case_when(
+      term == "broad_money_growth" ~ "Broad money growth",
+      term == "fx_depr" ~ "FX depreciation",
+      term == "tot_growth" ~ "Terms-of-trade growth",
+      term == "gov_cons_gdp" ~ "Gov. consumption share",
+      TRUE ~ term
+    ),
+    term = factor(term, levels = rev(c(
+      "Broad money growth",
+      "FX depreciation",
+      "Terms-of-trade growth",
+      "Gov. consumption share"
+    )))
+  )
+
+p_log_coef <- ggplot(log_coef_plot, aes(x = estimate, y = term)) +
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  geom_point() +
+  geom_errorbar(
+    aes(xmin = conf_low, xmax = conf_high),
+    width = 0.15,
+    orientation = "y"
+  ) +
+  labs(
+    title = "Log-outcome model coefficients",
+    subtitle = "Newey-West confidence intervals for the transformed inflation specification",
+    x = "Estimated coefficient",
+    y = NULL
+  ) +
+  theme_minimal()
+
+save_plot(p_log_coef, "14_log_outcome_coefficients.png", w = 8, h = 5)
 
 # ==========================================================
 # 15) DEMOTED / LEGACY: correlation matrix
@@ -764,6 +899,17 @@ readme_notes <- tibble(
 )
 
 write.csv(readme_notes, file.path(OUT_TAB, "project_metadata.csv"), row.names = FALSE)
+
+# ==========================================================
+# 18) SUPPORTING / APPENDIX: simple lagged annual model
+# ==========================================================
+lagged_results <- extract_model_results(m_lagged, "lagged_aux")
+write.csv(lagged_results, file.path(OUT_TAB, "lagged_model_results.csv"), row.names = FALSE)
+
+lagged_fit <- model_fit_stats(
+  m_lagged, "lagged_aux", "lagged_sample", "inflation_cpi"
+)
+write.csv(lagged_fit, file.path(OUT_TAB, "lagged_model_fit.csv"), row.names = FALSE)
 
 ############################################################
 # END

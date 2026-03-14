@@ -1,5 +1,5 @@
 ---
-title: "Peru Inflation and Macroeconomic Stabilization (1980–2022)."
+title: "When High Fit Misleads: Auditing an Inflation Model for Peru (1980–2022)"
 author: "Kai A. Sanchez Pajuelo"
 date: "March 2026"
 output:
@@ -9,6 +9,10 @@ output:
     number_sections: false
 header-includes: 
   - \usepackage{float}
+params:
+  country: "Peru"
+  start_year: 1980
+  end_year: 2022
 ---
 
 ```{r setup, include=FALSE}
@@ -27,48 +31,106 @@ library(kableExtra)
 library(tidyr)
 ```
 
-# Introduction
+# Executive Summary
 
-This project analyzes inflation dynamics in Peru from 1980 to 2022 using publicly available World Bank data. Peru’s macroeconomic history over this period is not characterized by a single stable inflation process. Instead, it includes a sharp hyperinflation episode in the late 1980s and early 1990s followed by a long period of low and relatively stable inflation after stabilization reforms.
+This project audits a simple annual inflation model for Peru using publicly available World Bank data from 1980 to 2022. The goal is not to estimate a causal macroeconomic model. The goal is to answer a practical analytics question:
 
-The purpose of this project is not to estimate a causal model of inflation. Rather, it aims to answer a more practical analytical question:
+> **How much can a model with excellent in-sample fit be distorted by outliers, regime shifts, and specification choices?**
 
-**How sensitive are simple inflation models to crisis years, regime shifts, and specification choices?**
+The answer is: a lot.
 
-That framing matters because full-sample macro regressions can look statistically strong while being heavily driven by a few extreme observations. This report combines reproducible data collection, feature engineering, descriptive visualization, influence diagnostics, and specification comparisons to show why regime-aware analysis is necessary in small macroeconomic samples.
+A full-sample regression appears statistically strong, but that strength is heavily driven by a small number of crisis-era observations, especially the hyperinflation years around 1988–1991. Once those years are isolated, excluded, or down-weighted through alternative specifications, coefficient magnitudes change materially and model fit falls sharply. The most stable descriptive correlate across specifications is exchange-rate depreciation, while the estimated role of broad money growth is more sensitive to the sample and functional form.
 
-The dataset was built using the World Bank API through the `wbstats` R package. Annual observations were collected for Peru from 1980 to 2022.
+## Why this matters for analytics
 
-## Core indicators
+This is not just a macroeconomics story. It is a model-auditing story.
 
-| Variable | Description |
-|---|---|
-| Inflation | CPI inflation (annual %) |
-| Broad money growth | Broad money growth (annual %) |
-| Exchange rate | Official exchange rate (LCU per USD) |
-| Government consumption | Government final consumption expenditure (% GDP) |
-| Terms of trade | Net barter terms of trade index |
+Analysts often see a high $R^2$, a clean regression table, and a persuasive chart and conclude that the model is reliable. This project shows why that can be misleading in small samples with extreme observations. A model can look excellent on paper while actually being dominated by a few influential rows.
 
-## Engineered variables
+## Main Takeaways
 
-In addition to the raw indicators, the analysis constructs:
+- The inflation series is dominated by a crisis regime, so a single full-sample model is not a stable summary of the entire period.
 
-- Exchange-rate depreciation: \(100 \times \Delta \log(\text{exchange rate})\)
+- The baseline OLS model is highly sensitive to influential observations, especially 1990.
 
-- Terms-of-trade growth: \(100 \times \Delta \log(\text{terms of trade})\)
+- Exchange-rate depreciation is the most stable descriptive correlate across specifications.
 
-- Lagged macro variables
+- Broad money growth matters in levels-based comparisons, but its role becomes less straightforward once crisis-era scale is reduced.
 
-- Rolling inflation volatility
+- The main lesson is analytical rather than causal: strong fit should be audited, not trusted automatically.
 
-- Regime indicators, including a post-stabilization period and hyperinflation years
+# Project Framing
 
-- Winsorized and transformed variants for robustness checks
+## Analytical Question
+
+Peru’s inflation history from 1980 to 2022 is not characterized by one stable regime. It includes a severe hyperinflation episode in the late 1980s and early 1990s, followed by a much calmer post-stabilization period. That historical pattern creates a useful setting for a data analysis project focused on model robustness.
+
+This report asks a practical portfolio-style question:
+
+> When annual macro data contain extreme crisis years, how much can a simple regression overstate stability and explanatory power?
+
+## What this project is and is not
+
+This project is:
+
+- a reproducible analytical workflow,
+
+- a descriptive model audit,
+
+- a regime-aware comparison of specifications,
+
+- an example of influence diagnostics and robustness checking.
+
+This project is not:
+
+- a causal identification exercise,
+
+- a forecasting model,
+
+- a full dynamic time-series study,
+
+- a claim that one regression uncovers Peru’s inflation process.
+
+That framing is intentional. The value of the project is in showing how to challenge a good-looking model before trusting it.
+
+# Data and Reproducibility
+
+## Data Source
+
+The dataset was built from publicly available World Bank indicators using the `wbstats` package in R. Annual observations were collected for Peru from `r params$start_year` to `r params$end_year`.
+
+## Variables used
+
+The core variables are:
+
+- Inflation, consumer prices (annual %)
+
+- Broad money growth (annual %)
+
+- Official exchange rate (used to construct FX depreciation)
+
+- General government final consumption expenditure (% of GDP)
+
+- Net barter terms of trade index
+
+Feature engineering includes:
+
+- annual log-difference style transformations where appropriate,
+
+- FX depreciation,
+
+- growth rates,
+
+- lagged values for a supporting auxiliary model,
+
+- transformed and winsorized outcomes for robustness checks,
+
+- a post-stabilization regime indicator.
 
 
-# Data Quality and Coverage
 
-The table below documents the coverage of each World Bank series used in the analysis.
+
+## Indicator coverage
 
 
 ```{r results='asis'}
@@ -91,43 +153,42 @@ kbl(
   kable_styling(latex_options = c("hold_position", "scale_down"))
 ```
 
-Because annual growth rates and lagged variables are constructed from the raw series, some model specifications use slightly fewer observations than the full 1980–2022 span. Although some source series extend beyond 2022, the analytical sample is restricted to 1980–2022 for consistency across variables and specifications.
+Although some raw series extend beyond 2022, the analytical sample is restricted to 1980–2022 for consistency across variables and specifications.
 
+## Reproducible workflow
 
-# Analytical Approach
+The workflow is intentionally simple and auditable:
 
-The project follows a descriptive, regime-aware workflow:
+1. Pull data from a public API.
 
-1. Build a reproducible macroeconomic panel from World Bank data.
+2. Clean and align annual indicators.
 
-2. Visualize the inflation series and identify the crisis regime.
+3. Construct derived variables.
 
-3. Estimate a baseline full-sample model.
+4. Visualize the inflation series.
 
-4. Audit whether a small number of years dominate the regression.
+5. Fit a baseline model.
 
-5. Compare coefficients across alternative samples and specifications.
+6. Audit influence and leverage.
 
-6. Interpret results as descriptive associations rather than stable structural parameters.
+7. Compare results across alternative specifications.
 
-This approach is more appropriate than relying on a single regression because Peru’s inflation history includes an extreme structural break.
+8. Summarize what changes and why.
 
-# Inflation Regimes
+# Why the full sample is misleading
+
+## Inflation regime chart
 
 ```{r infl-regime, out.width="78%", fig.cap="Inflation is dominated by a crisis regime"}
 knitr::include_graphics("output/figures/02_inflation_regime_chart.png")
 ```
 
 
-Figure \@ref(fig:infl-regime) shows the central fact of the project: the full inflation series is dominated by a narrow hyperinflation episode between 1988 and 1991. The inflation spike around 1990 is so large that it determines the visual scale of the entire 1980–2022 sample.
+The central fact of the project is visual, not econometric. Inflation is dominated by a narrow hyperinflation episode between 1988 and 1991. The spike around 1990 is so extreme that it determines the scale of the entire chart.
 
-This matters analytically because any full-sample regression is likely to be influenced heavily by these crisis years. It also suggests that Peru’s inflation dynamics are better understood as a combination of at least two regimes:
+That matters because a full-sample regression will naturally be pulled toward the years with the largest values. In practical analytics terms, this means a small number of observations can make a model look much more stable and much more accurate than it really is for the typical year.
 
-- a crisis regime in the late 1980s and early 1990s
-
-- a post-stabilization regime beginning in the mid-1990s
-
-# Summary Statistics
+## Summary statistics
 
 To show how strongly the crisis period affects the data, the table below reports summary statistics for the full sample and for a restricted sample excluding hyperinflation years.
 
@@ -172,33 +233,39 @@ kbl(summary_noncrisis, format = "latex", booktabs = TRUE, digits = 2,
 
 ```
 
-The contrast between the two panels is large. Full-sample moments are heavily distorted by the hyperinflation years, while the restricted sample provides a much better picture of typical macroeconomic variation.
+The contrast between the two panels shows why the full sample should not be treated casually. Crisis-era values stretch the distribution so much that full-sample moments say more about rare extremes than about typical variation.
 
 
-# Baseline Model
+# Baseline model as a diagnostic benchmark
 
-The baseline specification is a simple descriptive model:
+## Baseline specification
+
+The starting model is:
 
 $$
 Inflation_t = \beta_0 + \beta_1 MoneyGrowth_t + \beta_2 FXDepreciation_t + \beta_3 ToTGrowth_t + \beta_4 GovConsumption_t + \epsilon_t
 $$
 
-This equation is useful as a starting point, but it should not be interpreted as a structural model of inflation. In a small annual dataset with a major crisis episode, high in-sample fit can be misleading unless the model is checked for influence and stability.
+This is useful as a benchmark, but it is not the preferred final model. In this project, the baseline regression is best understood as a diagnostic benchmark designed to answer one question: what happens when we fit a simple model across a period that clearly contains more than one regime?
+
+## Why keep the baseline
+
+The baseline model stays in the report because it is the clearest way to show three things:
+
+- how a very high-fit model can still be fragile,
+
+- how crisis years dominate coefficient estimates,
+
+- why alternative specifications are necessary.
 
 
-# Influence Diagnostics
+# Influence audit
+
+## Most influential years
 
 ```{r cooks-main, out.width="78%", fig.cap="Most influential years in the baseline inflation model"}
 knitr::include_graphics("output/figures/08_cooks_distance_top10.png")
 ```
-
-Figure \@ref(fig:cooks-main) shows that the baseline regression is dominated by a small number of years, especially 1990. That single observation is vastly more influential than the rest of the sample, while 1988 and 1989 also contribute meaningfully.
-
-This result shows that the baseline full-sample regression is not a stable summary of the period. Rather than reflecting a relationship that holds uniformly across 1980–2022, the model is disproportionately shaped by a few crisis-era observations.
-
-
-# Top influential years
-
 
 ```{r results='asis'}
 top_influence <- read.csv("output/tables/top_influential_years.csv")
@@ -213,43 +280,48 @@ kbl(
   kable_styling(latex_options = c("hold_position", "scale_down"))
 ```
 
-The table confirms that 1990 is an extreme leverage point in the regression. This supports the interpretation that naive full-sample OLS is fragile in this setting.
+The influence results are the strongest evidence in the report. They show that the full-sample regression is not being summarized by many moderately informative observations. It is being shaped disproportionately by a tiny number of crisis-era years, especially 1990.
 
-
+This is the key audit result: the model looks strong partly because a few rows carry too much weight.
 
 # Specification Comparison
 
-To assess whether the main relationships are stable, the project compares coefficients across four versions of the model:
+## Why compare specifications
 
-- Full sample
+Once it is clear that the full-sample regression is influence-heavy, the next step is not to throw away modeling. The next step is to ask whether the main relationships survive under more reasonable views of the data.
 
-- Full sample excluding hyperinflation years
+The report compares several versions of the model:
 
-- Pre-stabilization sample (1980–1994)
+- full sample in levels,
 
-- Post-stabilization sample (1995–2022)
+- full sample excluding hyperinflation years,
 
-All comparisons below use Newey–West standard errors to make inference more appropriate for annual time-series data.
+- pre-1995 sample,
+
+- post-1995 sample,
+
+- interaction model,
+
+- transformed-outcome model,
+
+- winsorized outcome,
+
+- supporting lagged annual model.
+
+
+## Coefficient stability
 
 
 ```{r coef-stability, out.width="90%", fig.cap="Coefficient stability across specifications"}
 knitr::include_graphics("output/figures/12_coefficient_stability.png")
 ```
 
-Figure \@ref(fig:coef-stability) shows that coefficient magnitudes change materially across specifications.
+The comparison delivers a simple message. Signs are more stable than magnitudes. Broad money growth and exchange-rate depreciation tend to point in the expected direction in the main levels-based comparisons, but the size of those relationships changes materially across regimes.
 
-Three patterns stand out:
-
-1. Broad money growth remains positively associated with inflation in all four models, but the magnitude declines sharply in the post-stabilization period.
-
-2. Exchange-rate depreciation follows a similar pattern: it is much more strongly associated with inflation in crisis-sensitive specifications than in the post-1995 sample.
-
-3. Terms-of-trade growth and government consumption appear less stable and are estimated much less precisely.
-
-This is the core analytical takeaway of the project. The sign pattern for money growth and exchange-rate depreciation is fairly persistent, but the magnitude of the relationship is regime-dependent.
+That matters because many real-world analytics mistakes come from treating “same sign” as “same model.” This project shows that the same qualitative story can mask very different quantitative relationships.
 
 
-# Model Fit Statistics
+## Model fit statistics
 
 ```{r results='asis'}
 fit_stats <- read.csv("output/tables/model_fit_stats.csv")
@@ -264,21 +336,30 @@ kbl(
   kable_styling(latex_options = c("hold_position", "scale_down"))
 ```
 
-The fit statistics reinforce the same point. \(R^2\) remains very high in crisis-sensitive specifications, including the full-sample model, but falls materially in the post-stabilization sample. This suggests that the strong fit of the full-sample regression partly reflects the influence of crisis-era extremes rather than a stable inflation relationship across the entire 1980–2022 period.
+The near-perfect $R^2$ in the full-sample levels model is the most seductive number in the report and also the most misleading. A high fit statistic is perfectly compatible with a model that is unstable, influence-heavy, and overly dependent on crisis-era scale.
 
-The post-stabilization sample is especially informative: inflation is much lower and less volatile, and the same linear predictors explain a smaller share of variation. This suggests that the inflation process after stabilization differs meaningfully from the one observed during the crisis era.
+The post-stabilization sample is especially informative. Once inflation becomes much lower and less volatile, the same predictors explain far less variation. That does not weaken the project. It strengthens the central point: full-sample fit was overstating stability.
 
+# Functional form matters
 
+## Why include a transformed-outcome model
 
-# Interaction Model
+The transformed-outcome model is not included as a box-checking robustness exercise. It is included because the data span values from near zero to several thousand percent. In that setting, a log-style transformation helps answer a more practical question:
 
-As an additional robustness check, the project estimates an interaction model that allows the slopes on money growth and exchange-rate depreciation to differ after stabilization.
+> What do the relationships look like once the crisis spike stops dictating the scale of everything?
+
+## Transformed-outcome coefficients
+
+```{r log-outcome-fig, out.width="82%", fig.cap="Log-outcome model coefficients"}
+knitr::include_graphics("output/figures/14_log_outcome_coefficients.png")
+```
+
 
 
 ```{r results='asis'}
-interaction_terms <- read.csv("output/tables/interaction_model_neweywest.csv")
+log_terms <- read.csv("output/tables/log_outcome_model_neweywest.csv")
 
-interaction_clean <- interaction_terms %>%
+log_clean <- log_terms %>%
   transmute(
     Term = term,
     Estimate = round(estimate, 3),
@@ -290,88 +371,90 @@ interaction_clean <- interaction_terms %>%
   )
 
 kbl(
-  interaction_clean,
+  log_clean,
   format = "latex",
   booktabs = TRUE,
-  caption = "Interaction model with Newey–West standard errors"
+  caption = "Transformed-outcome model with Newey–West standard errors"
 ) %>%
   kable_styling(latex_options = c("hold_position", "scale_down"))
 ```
 
-The interaction model supports the same interpretation as the split-sample results: the association between inflation and broad money growth is much stronger before stabilization than after it. Exchange-rate effects also appear to weaken materially in the post-stabilization period, although these estimates are noisier and should be interpreted cautiously.
+The transformed specification keeps part of the original story, especially the role of exchange-rate depreciation, but it also shows that some coefficients are sensitive to functional form. That is exactly why this section matters.
+
+For portfolio purposes, this is one of the most valuable lessons in the report: changing the scale of the outcome changes the interpretation of the model. That is not a nuisance. That is analytical information.
 
 
-# Main Findings
-This project produces four main findings.
 
-## 1. Peru’s inflation history is not well described by a single stable regime
+# What the project demonstrates
 
-The 1988–1991 hyperinflation episode dominates the scale of the full sample and fundamentally changes how full-period regressions behave.
+## Practical analytics lessons
 
-## 2. Full-sample OLS is highly sensitive to crisis years
+```{r so-what-table, results='asis'}
+so_what <- tibble::tribble(
+  ~Finding, ~Risk_if_ignored, ~Better_practice,
+  "Full-sample R² is extremely high", "False confidence in a fragile model", "Check influence and compare specifications",
+  "1990 dominates the regression", "A few rows drive the story", "Use Cook's distance and leverage diagnostics",
+  "Results shift across regimes", "One model is treated as universally valid", "Split samples or add regime-aware comparisons",
+  "Functional form changes interpretation", "Coefficient story looks more stable than it is", "Audit transformed outcomes and robustness variants"
+)
 
-Influence diagnostics show that the baseline model is driven disproportionately by 1990, with 1988 and 1989 also exerting meaningful leverage.
+kable(
+  so_what,
+  caption = "Why the project matters beyond this dataset",
+  booktabs = TRUE,
+  linesep = ""
+) %>%
+  kable_styling(full_width = FALSE, font_size = 9) %>%
+  column_spec(1, width = "3cm") %>%
+  column_spec(2, width = "5cm") %>%
+  column_spec(3, width = "5cm")
+```
 
-## 3. Broad money growth and exchange-rate depreciation are the most consistent correlates of inflation
+This project demonstrates five things that are directly relevant to data analyst work:
 
-These two variables remain positively associated with inflation across several specifications, but the estimated magnitudes shrink sharply once crisis years are excluded or the analysis is restricted to the post-stabilization period.
+1. Building a reproducible pipeline from public data.
 
-## 4. High fit does not imply stable inference
+2. Translating a domain question into a testable analytical workflow.
 
-The full-sample model produces very high in-sample fit, but specification comparisons show that the apparent strength of the model is partly a consequence of crisis-era observations.
+3. Using visualization to detect structural problems before modeling.
+
+4. Auditing a strong-looking model with influence and robustness checks.
+
+5. Communicating limitations without weakening the value of the analysis.
+
+
+## Hiring-manager version of the takeaway
+
+A concise way to describe this project is:
+
+> I built a reproducible model-audit case study showing how outliers, regime shifts, and specification choices can make a simple regression look stronger and more stable than it really is.
+
+That framing is more useful for analytics hiring than describing the project only as a macro report.
 
 # Limitations
 
-This project is intentionally descriptive and has several limitations.
+This project remains intentionally narrow.
 
-- The sample is small and annual, which limits statistical power.
+- The data are annual, so the sample is small.
 
-- The pre-stabilization subsample is especially short.
+- The analysis is descriptive rather than causal.
 
-- The analysis does not identify causal effects.
+- Newey–West standard errors and residual checks make the inference more time-series aware, but they do not turn this into a full dynamic time-series study.
 
-- Important omitted variables may still matter.
+- Some variables are proxies rather than direct structural measures.
 
-- Annual World Bank indicators cannot capture within-year crisis dynamics.
+- The report prioritizes model sensitivity and auditability over theoretical completeness.
 
-These limitations do not invalidate the project, but they do shape its interpretation. The contribution here is not causal identification. It is the careful auditing of model sensitivity in a historically unstable macroeconomic series.
+Those limitations do not undermine the project. They define the scope correctly.
 
 # Conclusion
 
-This project began as a standard macroeconomic regression exercise, but the final analysis shows why that framing is too simplistic for Peru’s inflation history.
+This project started as a standard regression exercise and ended as a stronger analytics story.
 
-A small number of crisis years dominate the full sample, strongly influence baseline regression estimates, and inflate the apparent explanatory power of naive OLS. Once those years are isolated, excluded, or modeled separately, coefficient magnitudes shift materially. Broad money growth and exchange-rate depreciation remain the strongest descriptive correlates of inflation, but their relationship with inflation is much weaker in the post-stabilization era than in the crisis regime.
+A naive full-sample model appears to explain inflation extremely well. But once the data are visualized, audited, and re-estimated across alternative specifications, it becomes clear that the result is not a stable summary of the whole period. Crisis-era observations, especially around 1990, dominate the model and inflate the apparent explanatory power of baseline OLS.
 
-This case study shows how a simple regression can become misleading in a regime-changing macro series.:
+That is the core contribution of the report. It shows that good analysis does not end when a model fits well. It starts when the analyst asks whether the fit is trustworthy.
 
-- build a reproducible data pipeline from public APIs
-
-- engineer macroeconomic features
-
-- identify structural breaks
-
-- compare specifications rather than relying on a single model
-
-- communicate model limitations clearly
-
-That is ultimately the main analytical lesson of the project: in unstable macroeconomic data, the main lesson is that a high-fit regression can be misleading when a few crisis years dominate the sample.
-
-# Reproducibility
-
-All data were downloaded from the World Bank API using R.  
-All figures, tables, and model outputs were generated through a reproducible script-based workflow.
-
-The full repository includes:
-
-- data download and cleaning
-
-- feature engineering
-
-- model estimation
-
-- robustness checks
-
-- figure and table generation
 
 # Appendix
 
@@ -381,39 +464,99 @@ The full repository includes:
 knitr::include_graphics("output/figures/01_dashboard_timeseries.png")
 ```
 
-This dashboard provides broader macroeconomic context for the period under study. It is useful descriptively, but the main report emphasizes the inflation regime chart because it communicates the structural-break problem more directly.
+This dashboard provides useful context, but the main report keeps the regime chart as the anchor figure because it communicates the structural-break problem more directly.
 
 # Appendix B. Rolling inflation volatility
 
-```{r echo=FALSE, out.width="75%", fig.align="center"}
+```{r echo=FALSE, out.width="75%", fig.align="center", fig.cap="Rolling inflation volatility"}
 knitr::include_graphics("output/figures/06_rolling_inflation_volatility.png")
 ```
 
-This figure complements the regime chart by showing how inflation volatility collapses after stabilization. It reinforces the interpretation that Peru’s macroeconomic environment became much more stable after the crisis era.
 
-# Appendix C. Full-sample influence diagnostics (log scale)
 
-```{r echo=FALSE, out.width="75%", fig.align="center"}
+# Appendix C. Full influence distribution
+
+```{r echo=FALSE, out.width="75%", fig.align="center" ,fig.cap="Full-sample influence diagnostics (log scale)"}
 knitr::include_graphics("output/figures/08b_cooks_distance_logscale.png")
 ```
 
-The main report uses the top-10 influential-years chart for readability. This log-scale figure provides a fuller diagnostic view of the influence distribution across all years.
+
 
 # Appendix D. Leverage and standardized residuals
 
-```{r echo=FALSE, out.width="75%", fig.align="center"}
+```{r echo=FALSE, out.width="75%", fig.align="center" ,fig.cap="Leverage and standardized residuals"}
 knitr::include_graphics("output/figures/09_leverage_vs_stdresid.png")
 ```
 
-This diagnostic plot shows that crisis years combine unusually high leverage with large residual influence, reinforcing the conclusion that the baseline full-sample regression is not a stable summary of the period.
+
 
 # Appendix E. Actual versus fitted inflation
 
-```{r echo=FALSE, out.width="75%", fig.align="center"}
+```{r echo=FALSE, out.width="75%", fig.align="center" ,fig.cap="Actual versus fitted inflation"}
 knitr::include_graphics("output/figures/10_actual_vs_fitted_full.png")
 ```
 
-This figure shows that the baseline model tracks crisis spikes much more closely than calmer post-stabilization years. It is therefore better read as a descriptive fit to crisis-era variation than as evidence of a stable inflation equation.
+
+# Appendix F. Residual autocorrelation checks
+
+```{r results='asis'}
+autocorr_checks <- read.csv("output/tables/autocorrelation_checks.csv")
+
+kbl(
+  autocorr_checks,
+  format = "latex",
+  booktabs = TRUE,
+  digits = 3,
+  caption = "Residual autocorrelation checks"
+) %>%
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+```
+
+These checks are supportive rather than central. They are included to show that the report is time-series aware, while keeping the main emphasis on influence, robustness, and regime sensitivity.
 
 
+```{r echo=FALSE, out.width="75%", fig.align="center"}
+knitr::include_graphics("output/figures/13_residual_acf_full.png")
+```
+ 
 
+
+# Appendix G. Supporting lagged annual specification
+
+```{r results='asis'}
+lagged_fit <- read.csv("output/tables/lagged_model_fit.csv")
+
+kbl(
+  lagged_fit,
+  format = "latex",
+  booktabs = TRUE,
+  digits = 3,
+  caption = "Model fit statistics for supporting lagged annual specification"
+) %>%
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+```
+
+
+```{r}
+lagged_results <- read.csv("output/tables/lagged_model_results.csv")
+
+lagged_clean <- lagged_results %>%
+  filter(std_error_type == "Newey-West") %>%
+  transmute(
+    Term = term,
+    Estimate = round(estimate, 3),
+    `Std. Error` = round(std.error, 3),
+    Statistic = round(statistic, 3),
+    `p-value` = signif(p.value, 3)
+  )
+
+kbl(
+  lagged_clean,
+  format = "latex",
+  booktabs = TRUE,
+  caption = "Supporting lagged annual model with Newey–West standard errors"
+) %>%
+  kable_styling(latex_options = c("hold_position", "scale_down"))
+```
+
+The lagged model is left in the appendix because it adds context without changing the main story. The report remains centered on one analytical lesson: before trusting a strong-looking model, audit whether a few observations are telling most of the story.
