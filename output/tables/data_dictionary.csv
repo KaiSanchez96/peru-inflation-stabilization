@@ -15,3 +15,4 @@
 "post_stabilization","Indicator for 1995 onward","boolean"
 "regime","Hyperinflation / pre-stabilization / post-stabilization","category"
 "log1p_inflation","log(1 + inflation)","log points"
+"inflation_l1","Lagged inflation","percent"

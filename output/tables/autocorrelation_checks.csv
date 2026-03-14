@@ -1,0 +1,5 @@
+"model","test","statistic","p_value"
+"full_levels","Durbin-Watson",2.54386679459535,0.108
+"full_levels","Breusch-Godfrey(1)",17.6039347485724,2.72024932628838e-05
+"post_1995","Durbin-Watson",1.22080915053551,0.00600000000000001
+"post_1995","Breusch-Godfrey(1)",1.67286675425481,0.19587499595685
